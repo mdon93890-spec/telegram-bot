@@ -1,34 +1,17 @@
 import os
 import logging
-from flask import Flask, request
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, 
     ContextTypes, filters, ConversationHandler, CallbackQueryHandler
 )
 
-# Logging
+# Logging Setup
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # Config
 BOT_TOKEN = "8695302843:AAHwLFj5lP7TNy8NIC-G4a2sxl-LGvKkG2Y"
 ADMIN_ID = "8361020821"
-
-# Setup Bot Application
-application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-# Flask App for Render Web Service
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Telegram Bot is Active & Running via Webhook!"
-
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put(update)
-    return 'ok'
 
 # Conversation States
 GMAIL_PROOF, FB_DATA, WITHDRAW_METHOD, WITHDRAW_ACC, WITHDRAW_AMT = range(5)
@@ -230,39 +213,33 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("প্রক্রিয়া বাতিল করা হয়েছে।", reply_markup=main_keyboard())
     return ConversationHandler.END
 
-# Add Handlers
-conv_handler = ConversationHandler(
-    entry_points=[
-        CommandHandler("start", start),
-        MessageHandler(filters.Regex("^💸 টাকা তুলুন$"), start_withdraw),
-        CallbackQueryHandler(button_callback, pattern="^(gmail_submit|fb_submit)$")
-    ],
-    states={
-        GMAIL_PROOF: [MessageHandler(filters.PHOTO, receive_gmail_proof)],
-        FB_DATA: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_fb_data)],
-        WITHDRAW_METHOD: [CallbackQueryHandler(withdraw_method_selected, pattern="^method_")],
-        WITHDRAW_ACC: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_acc)],
-        WITHDRAW_AMT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_amt)]
-    },
-    fallbacks=[CommandHandler("cancel", cancel)]
-)
+def main():
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-application.add_handler(conv_handler)
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(button_callback))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    conv_handler = ConversationHandler(
+        entry_points=[
+            CommandHandler("start", start),
+            MessageHandler(filters.Regex("^💸 টাকা তুলুন$"), start_withdraw),
+            CallbackQueryHandler(button_callback, pattern="^(gmail_submit|fb_submit)$")
+        ],
+        states={
+            GMAIL_PROOF: [MessageHandler(filters.PHOTO, receive_gmail_proof)],
+            FB_DATA: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_fb_data)],
+            WITHDRAW_METHOD: [CallbackQueryHandler(withdraw_method_selected, pattern="^method_")],
+            WITHDRAW_ACC: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_acc)],
+            WITHDRAW_AMT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_amt)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+
+    application.add_handler(conv_handler)
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button_callback))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Clean polling
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
-    import asyncio
-    async def setup_webhook():
-        render_url = os.environ.get("RENDER_EXTERNAL_URL")
-        if render_url:
-            webhook_url = f"{render_url}/{BOT_TOKEN}"
-            await application.bot.set_webhook(url=webhook_url)
-            logging.info(f"Webhook set to {webhook_url}")
-
-    asyncio.run(setup_webhook())
-    
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    main()
         
