@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
@@ -218,7 +219,7 @@ async def receive_withdraw_amt(update: Update, context: ContextTypes.DEFAULT_TYP
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("প্রক্রিয়া বাতিল করা হয়েছে।", reply_markup=main_keyword() if 'main_keyword' in globals() else main_keyboard())
+    await update.message.reply_text("প্রক্রিয়া বাতিল করা হয়েছে।", reply_markup=main_keyboard())
     return ConversationHandler.END
 
 # Setup Bot Application
@@ -245,20 +246,8 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(button_callback))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Webhook or Polling Setup for Render Web Service
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    
-    # Run bot using webhook to avoid conflict with Render web service port binding
-    WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")
-    if WEBHOOK_URL:
-        PORT = int(os.environ.get("PORT", 10000))
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=BOT_TOKEN,
-            webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
-        )
-    else:
-        application.run_polling(drop_pending_updates=True)
-        
+# Run Bot in Background Thread so Gunicorn can run Flask
+def run_bot():
+    application.run_polling(drop_pending_updates=True)
+
+threading.Thread(target=run_bot, daemon=True).start()
