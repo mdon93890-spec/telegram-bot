@@ -1,5 +1,5 @@
 import os
-import threading
+import logging
 from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
@@ -7,18 +7,15 @@ from telegram.ext import (
     ContextTypes, filters, ConversationHandler, CallbackQueryHandler
 )
 
+# Logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
 # Render Keep-Alive Flask Server
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Telegram Bot is Active & Running!"
-
-def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
-
-threading.Thread(target=run_web, daemon=True).start()
 
 # Config
 BOT_TOKEN = "8695302843:AAHwLFj5lP7TNy8NIC-G4a2sxl-LGvKkG2Y"
@@ -221,37 +218,47 @@ async def receive_withdraw_amt(update: Update, context: ContextTypes.DEFAULT_TYP
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("প্রক্রিয়া বাতিল করা হয়েছে।", reply_markup=main_keyboard())
+    await update.message.reply_text("প্রক্রিয়া বাতিল করা হয়েছে।", reply_markup=main_keyword() if 'main_keyword' in globals() else main_keyboard())
     return ConversationHandler.END
 
-# Main Runner
-def main():
-    app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
+# Setup Bot Application
+application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler("start", start),
-            MessageHandler(filters.Regex("^💸 টাকা তুলুন$"), start_withdraw),
-            CallbackQueryHandler(button_callback, pattern="^(gmail_submit|fb_submit)$")
-        ],
-        states={
-            GMAIL_PROOF: [MessageHandler(filters.PHOTO, receive_gmail_proof)],
-            FB_DATA: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_fb_data)],
-            WITHDRAW_METHOD: [CallbackQueryHandler(withdraw_method_selected, pattern="^method_")],
-            WITHDRAW_ACC: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_acc)],
-            WITHDRAW_AMT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_amt)]
-        },
-        fallbacks=[CommandHandler("cancel", cancel)]
-    )
+conv_handler = ConversationHandler(
+    entry_points=[
+        CommandHandler("start", start),
+        MessageHandler(filters.Regex("^💸 টাকা তুলুন$"), start_withdraw),
+        CallbackQueryHandler(button_callback, pattern="^(gmail_submit|fb_submit)$")
+    ],
+    states={
+        GMAIL_PROOF: [MessageHandler(filters.PHOTO, receive_gmail_proof)],
+        FB_DATA: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_fb_data)],
+        WITHDRAW_METHOD: [CallbackQueryHandler(withdraw_method_selected, pattern="^method_")],
+        WITHDRAW_ACC: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_acc)],
+        WITHDRAW_AMT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_withdraw_amt)]
+    },
+    fallbacks=[CommandHandler("cancel", cancel)]
+)
 
-    app_bot.add_handler(conv_handler)
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(CallbackQueryHandler(button_callback))
-    app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+application.add_handler(conv_handler)
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button_callback))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Bot starting...")
-    app_bot.run_polling()
-
+# Webhook or Polling Setup for Render Web Service
 if __name__ == '__main__':
-    main()
+    port = int(os.environ.get("PORT", 10000))
+    
+    # Run bot using webhook to avoid conflict with Render web service port binding
+    WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")
+    if WEBHOOK_URL:
+        PORT = int(os.environ.get("PORT", 10000))
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=BOT_TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+        )
+    else:
+        application.run_polling(drop_pending_updates=True)
         
