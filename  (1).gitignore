@@ -1,0 +1,5 @@
+data/
+*.bak
+*.tmp
+.env
+__pycache__/
