@@ -1,0 +1,17 @@
+services:
+  - type: web                      # Web Service হিসেবে চলবে
+    name: easy-income-bot          # সার্ভিসের নাম
+    runtime: python
+    plan: free                     # ফ্রি প্ল্যান
+    buildCommand: pip install -r requirements.txt   # লাইব্রেরি ইনস্টল
+    startCommand: python main.py   # বট চালু করার কমান্ড
+    healthCheckPath: /             # সার্ভিস সচল আছে কি না দেখার পথ
+    envVars:
+      - key: PYTHON_VERSION        # পাইথন ৩.১২.৩
+        value: 3.12.3
+      - key: BOT_TOKEN             # টোকেন, Render-এ নিজে বসাবেন
+        sync: false
+      - key: MONGODB_URI           # ডাটাবেসের লিংক, নিজে বসাবেন
+        sync: false
+      - key: ADMIN_ID              # আপনার এডমিন আইডি
+        value: "8361020821"
