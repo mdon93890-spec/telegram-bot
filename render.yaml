@@ -14,4 +14,4 @@ services:
       - key: MONGODB_URI           # ডাটাবেসের লিংক, নিজে বসাবেন
         sync: false
       - key: ADMIN_ID              # আপনার এডমিন আইডি
-        value: "8361020821"
+        value: "8274424703"
